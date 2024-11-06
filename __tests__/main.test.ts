@@ -9,18 +9,31 @@
 import * as core from '@actions/core'
 import * as main from '../src/main'
 
-// Mock the action's main function
-const runMock = jest.spyOn(main, 'run')
-
-// Other utilities
-const timeRegex = /^\d{2}:\d{2}:\d{2}/
-
 // Mock the GitHub Actions core library
-let debugMock: jest.SpiedFunction<typeof core.debug>
-let errorMock: jest.SpiedFunction<typeof core.error>
 let getInputMock: jest.SpiedFunction<typeof core.getInput>
 let setFailedMock: jest.SpiedFunction<typeof core.setFailed>
-let setOutputMock: jest.SpiedFunction<typeof core.setOutput>
+const infoMock = jest.spyOn(core, 'info')
+
+// Mock the GitHub API
+const listLanguagesMock = jest.fn()
+const getContentMock = jest.fn()
+
+jest.mock('@actions/github', () => ({
+  getOctokit: jest.fn(() => ({
+    rest: {
+      repos: {
+        listLanguages: (...args: any[]) => listLanguagesMock(...args),
+        getContent: (...args: any[]) => getContentMock(...args)
+      }
+    }
+  })),
+  context: {
+    repo: {
+      owner: 'test-owner',
+      repo: 'test-repo'
+    }
+  }
+}))
 
 describe('action', () => {
   beforeEach(() => {
@@ -31,59 +44,47 @@ describe('action', () => {
     getInputMock = jest.spyOn(core, 'getInput').mockImplementation()
     setFailedMock = jest.spyOn(core, 'setFailed').mockImplementation()
     setOutputMock = jest.spyOn(core, 'setOutput').mockImplementation()
+    jest.clearAllMocks()
+    getInputMock.mockImplementation((name: string) => {
+      if (name === 'github-token') return 'mock-token'
+      return ''
+    })
   })
 
-  it('sets the time output', async () => {
-    // Set the action's inputs as return values from core.getInput()
-    getInputMock.mockImplementation(name => {
-      switch (name) {
-        case 'milliseconds':
-          return '500'
-        default:
-          return ''
+  it('validates repository with matching Dependabot configuration', async () => {
+    listLanguagesMock.mockResolvedValue({
+      data: { JavaScript: 100, TypeScript: 50 }
+    })
+    getContentMock.mockResolvedValue({
+      data: {
+        content: Buffer.from(
+          'updates:\n  - package-ecosystem: "npm"\n    directory: "/"\n    schedule:\n      interval: "daily"'
+        ).toString('base64')
       }
     })
 
     await main.run()
-    expect(runMock).toHaveReturned()
 
-    // Verify that all of the core library functions were called correctly
-    expect(debugMock).toHaveBeenNthCalledWith(1, 'Waiting 500 milliseconds ...')
-    expect(debugMock).toHaveBeenNthCalledWith(
-      2,
-      expect.stringMatching(timeRegex)
+    expect(infoMock).toHaveBeenCalledWith(
+      'Found languages: JavaScript, TypeScript'
     )
-    expect(debugMock).toHaveBeenNthCalledWith(
-      3,
-      expect.stringMatching(timeRegex)
+    expect(infoMock).toHaveBeenCalledWith('Supported ecosystems: npm')
+    expect(infoMock).toHaveBeenCalledWith(
+      'All supported ecosystems are configured in dependabot.yml'
     )
-    expect(setOutputMock).toHaveBeenNthCalledWith(
-      1,
-      'time',
-      expect.stringMatching(timeRegex)
-    )
-    expect(errorMock).not.toHaveBeenCalled()
+    expect(setFailedMock).not.toHaveBeenCalled()
   })
 
-  it('sets a failed status', async () => {
-    // Set the action's inputs as return values from core.getInput()
-    getInputMock.mockImplementation(name => {
-      switch (name) {
-        case 'milliseconds':
-          return 'this is not a number'
-        default:
-          return ''
-      }
+  it('fails when Dependabot configuration is missing', async () => {
+    listLanguagesMock.mockResolvedValue({
+      data: { JavaScript: 100 }
     })
+    getContentMock.mockRejectedValue(new Error('Not found'))
 
     await main.run()
-    expect(runMock).toHaveReturned()
 
-    // Verify that all of the core library functions were called correctly
-    expect(setFailedMock).toHaveBeenNthCalledWith(
-      1,
-      'milliseconds not a number'
+    expect(setFailedMock).toHaveBeenCalledWith(
+      'No .github/dependabot.yml file found'
     )
-    expect(errorMock).not.toHaveBeenCalled()
   })
 })
