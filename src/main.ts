@@ -15,6 +15,21 @@ const SUPPORTED_ECOSYSTEMS = {
   gradle: ['Java', 'Kotlin']
 }
 
+function getEcosystemLanguageMapping(
+  repoLanguages: string[]
+): Map<string, string[]> {
+  const mapping = new Map<string, string[]>()
+
+  for (const [ecosystem, langs] of Object.entries(SUPPORTED_ECOSYSTEMS)) {
+    const matchedLangs = langs.filter(lang => repoLanguages.includes(lang))
+    if (matchedLangs.length > 0) {
+      mapping.set(ecosystem, matchedLangs)
+    }
+  }
+
+  return mapping
+}
+
 export async function run(): Promise<void> {
   try {
     // Get GitHub token input
@@ -31,20 +46,21 @@ export async function run(): Promise<void> {
     const repoLanguages = Object.keys(languages)
     core.info(`Found languages: ${repoLanguages.join(', ')}`)
 
-    // Get supported ecosystems for the languages
-    const supportedEcosystems = new Set<string>()
-    for (const [ecosystem, langs] of Object.entries(SUPPORTED_ECOSYSTEMS)) {
-      if (repoLanguages.some(lang => langs.includes(lang))) {
-        supportedEcosystems.add(ecosystem)
-      }
-    }
+    // Get supported ecosystems and their languages
+    const ecosystemMapping = getEcosystemLanguageMapping(repoLanguages)
+    const supportedEcosystems = new Set(ecosystemMapping.keys())
 
     if (supportedEcosystems.size === 0) {
       core.info('No supported Dependabot ecosystems found for this repository')
       return
     }
 
-    core.info(`Supported ecosystems: ${[...supportedEcosystems].join(', ')}`)
+    // Display detailed ecosystem information
+    core.info('\nSupported Dependabot ecosystems for your repository:')
+    for (const [ecosystem, languages] of ecosystemMapping) {
+      core.info(`- ${ecosystem}: ${languages.join(', ')}`)
+    }
+    core.info('') // Empty line for better readability
 
     // Check Dependabot configuration
     try {
@@ -57,7 +73,14 @@ export async function run(): Promise<void> {
       if ('content' in dependabotConfig.data) {
         const config = yaml.load(
           Buffer.from(dependabotConfig.data.content, 'base64').toString()
-        ) as { updates: { 'package-ecosystem': string }[] }
+        ) as { updates?: { 'package-ecosystem': string }[] }
+
+        if (!config || !config.updates || !Array.isArray(config.updates)) {
+          core.setFailed(
+            'Invalid dependabot.yml: Missing or invalid "updates" configuration'
+          )
+          return
+        }
 
         const configuredEcosystems = new Set(
           config.updates.map(u => u['package-ecosystem'])

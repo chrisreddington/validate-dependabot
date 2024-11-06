@@ -1,5 +1,11 @@
 # Dependabot Validator Action
 
+[![GitHub Super-Linter](https://github.com/chrisreddington/validate-dependabot/actions/workflows/linter.yml/badge.svg)](https://github.com/chrisreddington/validate-dependabot)
+![CI](https://github.com/chrisreddington/validate-dependabot/actions/workflows/ci.yml/badge.svg)
+[![Check dist/](https://github.com/chrisreddington/validate-dependabot/actions/workflows/check-dist.yml/badge.svg)](https://github.com/chrisreddington/validate-dependabot/actions/workflows/check-dist.yml)
+[![CodeQL](https://github.com/chrisreddington/validate-dependabot/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/chrisreddington/validate-dependabot/actions/workflows/codeql-analysis.yml)
+[![Coverage](./badges/coverage.svg)](./badges/coverage.svg)
+
 This action validates that your repository has Dependabot configured for all
 supported package ecosystems based on the programming languages used in your
 repository.

@@ -54,7 +54,34 @@ describe('validate-dependabot', () => {
 
     expect(mockSetFailed).not.toHaveBeenCalled()
     expect(mockInfo).toHaveBeenCalledWith(
+      '\nSupported Dependabot ecosystems for your repository:'
+    )
+    expect(mockInfo).toHaveBeenCalledWith('- npm: JavaScript, TypeScript')
+    expect(mockInfo).toHaveBeenCalledWith(
       'All supported ecosystems are configured in dependabot.yml'
+    )
+  })
+
+  test('shows ecosystem info even when dependabot.yml is empty', async () => {
+    mockOctokit.rest.repos.listLanguages.mockResolvedValue({
+      data: { JavaScript: 1, Python: 1 }
+    })
+
+    mockOctokit.rest.repos.getContent.mockResolvedValue({
+      data: {
+        content: Buffer.from('# Empty configuration').toString('base64')
+      }
+    })
+
+    await run()
+
+    expect(mockInfo).toHaveBeenCalledWith(
+      '\nSupported Dependabot ecosystems for your repository:'
+    )
+    expect(mockInfo).toHaveBeenCalledWith('- npm: JavaScript')
+    expect(mockInfo).toHaveBeenCalledWith('- pip: Python')
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      'Invalid dependabot.yml: Missing or invalid "updates" configuration'
     )
   })
 
@@ -115,5 +142,23 @@ describe('validate-dependabot', () => {
     await run()
 
     expect(mockSetFailed).toHaveBeenCalledWith('API error')
+  })
+
+  test('fails when dependabot.yml is empty or invalid', async () => {
+    mockOctokit.rest.repos.listLanguages.mockResolvedValue({
+      data: { JavaScript: 1 }
+    })
+
+    mockOctokit.rest.repos.getContent.mockResolvedValue({
+      data: {
+        content: Buffer.from('# Empty configuration').toString('base64')
+      }
+    })
+
+    await run()
+
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      'Invalid dependabot.yml: Missing or invalid "updates" configuration'
+    )
   })
 })
