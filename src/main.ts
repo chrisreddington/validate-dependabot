@@ -1,7 +1,6 @@
 import * as core from '@actions/core'
 import * as github from '@actions/github'
 import * as yaml from 'js-yaml'
-import { getOctokit } from '@actions/github'
 
 const SUPPORTED_ECOSYSTEMS = {
   npm: ['JavaScript', 'TypeScript'],
@@ -20,9 +19,7 @@ export async function run(): Promise<void> {
   try {
     // Get GitHub token input
     const token = core.getInput('github-token', { required: true })
-    const octokit = (await github.getOctokit(token)) as ReturnType<
-      typeof getOctokit
-    >
+    const octokit = github.getOctokit(token)
     const context = github.context
 
     // Get repository languages
