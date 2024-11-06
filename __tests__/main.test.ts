@@ -1,89 +1,119 @@
-/**
- * Unit tests for the action's main functionality, src/main.ts
- *
- * These should be run as if the action was called from a workflow.
- * Specifically, the inputs listed in `action.yml` should be set as environment
- * variables following the pattern `INPUT_<INPUT_NAME>`.
- */
-
 import * as core from '@actions/core'
-import * as main from '../src/main'
+import * as github from '@actions/github'
+import { Context } from '@actions/github/lib/context'
+import { run } from '../src/main'
 
-// Mock the action's main function
-const runMock = jest.spyOn(main, 'run')
+jest.mock('@actions/core')
+jest.mock('@actions/github')
 
-// Other utilities
-const timeRegex = /^\d{2}:\d{2}:\d{2}/
+const mockGetInput = core.getInput as jest.MockedFunction<typeof core.getInput>
+const mockSetFailed = core.setFailed as jest.MockedFunction<
+  typeof core.setFailed
+>
+const mockInfo = core.info as jest.MockedFunction<typeof core.info>
 
-// Mock the GitHub Actions core library
-let debugMock: jest.SpiedFunction<typeof core.debug>
-let errorMock: jest.SpiedFunction<typeof core.error>
-let getInputMock: jest.SpiedFunction<typeof core.getInput>
-let setFailedMock: jest.SpiedFunction<typeof core.setFailed>
-let setOutputMock: jest.SpiedFunction<typeof core.setOutput>
+describe('validate-dependabot', () => {
+  const mockOctokit = {
+    rest: {
+      repos: {
+        listLanguages: jest.fn(),
+        getContent: jest.fn()
+      }
+    }
+  }
 
-describe('action', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-
-    debugMock = jest.spyOn(core, 'debug').mockImplementation()
-    errorMock = jest.spyOn(core, 'error').mockImplementation()
-    getInputMock = jest.spyOn(core, 'getInput').mockImplementation()
-    setFailedMock = jest.spyOn(core, 'setFailed').mockImplementation()
-    setOutputMock = jest.spyOn(core, 'setOutput').mockImplementation()
+    mockGetInput.mockReturnValue('mock-token')
+    ;(github.getOctokit as jest.Mock).mockReturnValue(mockOctokit)
+    Object.defineProperty(github, 'context', {
+      value: {
+        repo: {
+          owner: 'test-owner',
+          repo: 'test-repo'
+        }
+      } as Partial<Context>,
+      configurable: true
+    })
   })
 
-  it('sets the time output', async () => {
-    // Set the action's inputs as return values from core.getInput()
-    getInputMock.mockImplementation(name => {
-      switch (name) {
-        case 'milliseconds':
-          return '500'
-        default:
-          return ''
+  test('succeeds when all supported ecosystems are configured', async () => {
+    mockOctokit.rest.repos.listLanguages.mockResolvedValue({
+      data: { JavaScript: 1, TypeScript: 1 }
+    })
+
+    mockOctokit.rest.repos.getContent.mockResolvedValue({
+      data: {
+        content: Buffer.from(
+          'updates:\n  - package-ecosystem: "npm"\n    directory: "/"\n    schedule:\n      interval: "daily"'
+        ).toString('base64')
       }
     })
 
-    await main.run()
-    expect(runMock).toHaveReturned()
+    await run()
 
-    // Verify that all of the core library functions were called correctly
-    expect(debugMock).toHaveBeenNthCalledWith(1, 'Waiting 500 milliseconds ...')
-    expect(debugMock).toHaveBeenNthCalledWith(
-      2,
-      expect.stringMatching(timeRegex)
+    expect(mockSetFailed).not.toHaveBeenCalled()
+    expect(mockInfo).toHaveBeenCalledWith(
+      'All supported ecosystems are configured in dependabot.yml'
     )
-    expect(debugMock).toHaveBeenNthCalledWith(
-      3,
-      expect.stringMatching(timeRegex)
-    )
-    expect(setOutputMock).toHaveBeenNthCalledWith(
-      1,
-      'time',
-      expect.stringMatching(timeRegex)
-    )
-    expect(errorMock).not.toHaveBeenCalled()
   })
 
-  it('sets a failed status', async () => {
-    // Set the action's inputs as return values from core.getInput()
-    getInputMock.mockImplementation(name => {
-      switch (name) {
-        case 'milliseconds':
-          return 'this is not a number'
-        default:
-          return ''
+  test('fails when dependabot.yml is missing', async () => {
+    mockOctokit.rest.repos.listLanguages.mockResolvedValue({
+      data: { JavaScript: 1 }
+    })
+
+    mockOctokit.rest.repos.getContent.mockRejectedValue(new Error('Not found'))
+
+    await run()
+
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      expect.stringContaining('No .github/dependabot.yml file found')
+    )
+  })
+
+  test('fails when supported ecosystem is not configured', async () => {
+    mockOctokit.rest.repos.listLanguages.mockResolvedValue({
+      data: { JavaScript: 1, Python: 1 }
+    })
+
+    mockOctokit.rest.repos.getContent.mockResolvedValue({
+      data: {
+        content: Buffer.from(
+          'updates:\n  - package-ecosystem: "npm"\n    directory: "/"\n    schedule:\n      interval: "daily"'
+        ).toString('base64')
       }
     })
 
-    await main.run()
-    expect(runMock).toHaveReturned()
+    await run()
 
-    // Verify that all of the core library functions were called correctly
-    expect(setFailedMock).toHaveBeenNthCalledWith(
-      1,
-      'milliseconds not a number'
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Missing Dependabot configuration for ecosystems: pip'
+      )
     )
-    expect(errorMock).not.toHaveBeenCalled()
+  })
+
+  test('succeeds when no supported languages are found', async () => {
+    mockOctokit.rest.repos.listLanguages.mockResolvedValue({
+      data: { Brainfuck: 1 }
+    })
+
+    await run()
+
+    expect(mockSetFailed).not.toHaveBeenCalled()
+    expect(mockInfo).toHaveBeenCalledWith(
+      'No supported Dependabot ecosystems found for this repository'
+    )
+  })
+
+  test('handles API errors gracefully', async () => {
+    mockOctokit.rest.repos.listLanguages.mockRejectedValue(
+      new Error('API error')
+    )
+
+    await run()
+
+    expect(mockSetFailed).toHaveBeenCalledWith('API error')
   })
 })

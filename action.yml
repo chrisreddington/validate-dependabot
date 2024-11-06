@@ -1,23 +1,20 @@
-name: 'The name of your action here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
+name: 'Dependabot Validator'
+description:
+  'Validate that dependabot is enabled for any supported languages that are
+  present in the repository.'
+author: 'chrisreddington'
 
 # Add your action's branding here. This will appear on the GitHub Marketplace.
 branding:
   icon: 'heart'
   color: 'red'
 
-# Define your inputs here.
 inputs:
-  milliseconds:
-    description: 'Your input description here'
-    required: true
-    default: '1000'
-
-# Define your outputs here.
-outputs:
-  time:
-    description: 'Your output description here'
+  github-token:
+    description: >
+      Personal access token (PAT) used to query the languages used in the
+      repository.
+    default: ${{ github.token }}
 
 runs:
   using: node20
