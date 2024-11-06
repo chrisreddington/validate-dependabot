@@ -83,7 +83,7 @@ The action may fail with the following messages:
    - Create a dependabot.yml file in your .github directory
    - Ensure the file has correct YAML syntax
 
-2. Missing Dependabot configuration for ecosystems: X, Y, Z
+1. Missing Dependabot configuration for ecosystems: X, Y, Z
    - Add configurations for the listed ecosystems to your dependabot.yml
    - Each ecosystem needs its own update block in the configuration
 
