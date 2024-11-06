@@ -9,11 +9,11 @@ branding:
   icon: 'heart'
   color: 'red'
 
-
 inputs:
   github-token:
     description: >
-      Personal access token (PAT) used to query the languages used in the repository.
+      Personal access token (PAT) used to query the languages used in the
+      repository.
     default: ${{ github.token }}
 
 runs:
