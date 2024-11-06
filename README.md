@@ -53,7 +53,7 @@ jobs:
 
 | Input        | Description                        | Required | Default |
 | ------------ | ---------------------------------- | -------- | ------- |
-| github-token | GitHub token for repository access | Yes      | N/A     |
+| github-token | GitHub token for repository access | No      | Defaults to the automatically generated token. You may override this if you require additional permissions beyond the default token.     |
 
 ### Example dependabot.yml
 
