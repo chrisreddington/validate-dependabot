@@ -34092,7 +34092,8 @@ async function run() {
             const dependabotConfig = await octokit.rest.repos.getContent({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                path: '.github/dependabot.yml'
+                path: '.github/dependabot.yml',
+                ref: context.ref
             });
             if ('content' in dependabotConfig.data) {
                 const config = yaml.load(Buffer.from(dependabotConfig.data.content, 'base64').toString());
