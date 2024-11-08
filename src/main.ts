@@ -67,7 +67,8 @@ export async function run(): Promise<void> {
       const dependabotConfig = await octokit.rest.repos.getContent({
         owner: context.repo.owner,
         repo: context.repo.repo,
-        path: '.github/dependabot.yml'
+        path: '.github/dependabot.yml',
+        ref: context.ref
       })
 
       if ('content' in dependabotConfig.data) {
