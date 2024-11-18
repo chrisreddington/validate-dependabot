@@ -64,4 +64,22 @@ describe('validate-dependabot integration', () => {
 
     expect(mockSetFailed).toHaveBeenCalledWith('API error')
   })
+
+  test('handles no supported ecosystems', async () => {
+    mockOctokit.rest.repos.listLanguages.mockResolvedValue({
+      data: { NotALanguage: 1 } // A language without Dependabot support
+    })
+
+    await run()
+
+    expect(mockSetFailed).not.toHaveBeenCalled()
+  })
+
+  test('handles non-Error exceptions', async () => {
+    mockOctokit.rest.repos.listLanguages.mockRejectedValue('String error')
+
+    await run()
+
+    expect(mockSetFailed).not.toHaveBeenCalled()
+  })
 })

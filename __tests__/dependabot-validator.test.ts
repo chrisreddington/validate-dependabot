@@ -86,4 +86,38 @@ describe('DependabotValidator', () => {
       )
     )
   })
+
+  test('fails when getContent response has no content field', async () => {
+    mockGetContent.mockResolvedValue({
+      data: {} // Missing content field
+    })
+
+    await validator.validateConfiguration(
+      'owner',
+      'repo',
+      'main',
+      new Set(['npm'])
+    )
+
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'No .github/dependabot.yml file found. Invalid dependabot.yml content'
+      )
+    )
+  })
+
+  test('handles non-Error exceptions in validateConfiguration', async () => {
+    mockGetContent.mockRejectedValue('String error')
+
+    await validator.validateConfiguration(
+      'owner',
+      'repo',
+      'main',
+      new Set(['npm'])
+    )
+
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      'No .github/dependabot.yml file found.'
+    )
+  })
 })
