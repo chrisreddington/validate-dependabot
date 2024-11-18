@@ -1,7 +1,7 @@
 # Core Requirements
 
 - The end goal is to create a custom GitHub Action which validates the
-  devcontainer.json of a given repository.
+  dependabot.yml configuration of a given repository.
 
 ## Code Quality Requirements
 
