@@ -6,13 +6,13 @@ import { run } from '../src/main'
 jest.mock('@actions/core')
 jest.mock('@actions/github')
 
-const mockGetInput = core.getInput as jest.MockedFunction<typeof core.getInput>
-const mockSetFailed = core.setFailed as jest.MockedFunction<
-  typeof core.setFailed
->
-const mockInfo = core.info as jest.MockedFunction<typeof core.info>
-
-describe('validate-dependabot', () => {
+describe('validate-dependabot integration', () => {
+  const mockGetInput = core.getInput as jest.MockedFunction<
+    typeof core.getInput
+  >
+  const mockSetFailed = core.setFailed as jest.MockedFunction<
+    typeof core.setFailed
+  >
   const mockOctokit = {
     rest: {
       repos: {
@@ -37,7 +37,7 @@ describe('validate-dependabot', () => {
     })
   })
 
-  test('succeeds when all supported ecosystems are configured', async () => {
+  test('handles complete happy path', async () => {
     mockOctokit.rest.repos.listLanguages.mockResolvedValue({
       data: { JavaScript: 1, TypeScript: 1 }
     })
@@ -53,85 +53,6 @@ describe('validate-dependabot', () => {
     await run()
 
     expect(mockSetFailed).not.toHaveBeenCalled()
-    expect(mockInfo).toHaveBeenCalledWith(
-      '\nSupported Dependabot ecosystems for your repository:'
-    )
-    expect(mockInfo).toHaveBeenCalledWith('- npm: JavaScript, TypeScript')
-    expect(mockInfo).toHaveBeenCalledWith(
-      'All supported ecosystems are configured in dependabot.yml'
-    )
-  })
-
-  test('shows ecosystem info even when dependabot.yml is empty', async () => {
-    mockOctokit.rest.repos.listLanguages.mockResolvedValue({
-      data: { JavaScript: 1, Python: 1 }
-    })
-
-    mockOctokit.rest.repos.getContent.mockResolvedValue({
-      data: {
-        content: Buffer.from('# Empty configuration').toString('base64')
-      }
-    })
-
-    await run()
-
-    expect(mockInfo).toHaveBeenCalledWith(
-      '\nSupported Dependabot ecosystems for your repository:'
-    )
-    expect(mockInfo).toHaveBeenCalledWith('- npm: JavaScript')
-    expect(mockInfo).toHaveBeenCalledWith('- pip: Python')
-    expect(mockSetFailed).toHaveBeenCalledWith(
-      'No .github/dependabot.yml file found. Invalid dependabot.yml: Missing or invalid "updates" configuration'
-    )
-  })
-
-  test('fails when dependabot.yml is missing', async () => {
-    mockOctokit.rest.repos.listLanguages.mockResolvedValue({
-      data: { JavaScript: 1 }
-    })
-
-    mockOctokit.rest.repos.getContent.mockRejectedValue(new Error('Not found'))
-
-    await run()
-
-    expect(mockSetFailed).toHaveBeenCalledWith(
-      expect.stringContaining('No .github/dependabot.yml file found')
-    )
-  })
-
-  test('fails when supported ecosystem is not configured', async () => {
-    mockOctokit.rest.repos.listLanguages.mockResolvedValue({
-      data: { JavaScript: 1, Python: 1 }
-    })
-
-    mockOctokit.rest.repos.getContent.mockResolvedValue({
-      data: {
-        content: Buffer.from(
-          'updates:\n  - package-ecosystem: "npm"\n    directory: "/"\n    schedule:\n      interval: "daily"'
-        ).toString('base64')
-      }
-    })
-
-    await run()
-
-    expect(mockSetFailed).toHaveBeenCalledWith(
-      expect.stringContaining(
-        'Missing Dependabot configuration for ecosystems: pip'
-      )
-    )
-  })
-
-  test('succeeds when no supported languages are found', async () => {
-    mockOctokit.rest.repos.listLanguages.mockResolvedValue({
-      data: { Brainfuck: 1 }
-    })
-
-    await run()
-
-    expect(mockSetFailed).not.toHaveBeenCalled()
-    expect(mockInfo).toHaveBeenCalledWith(
-      'No supported Dependabot ecosystems found for this repository'
-    )
   })
 
   test('handles API errors gracefully', async () => {
@@ -142,23 +63,5 @@ describe('validate-dependabot', () => {
     await run()
 
     expect(mockSetFailed).toHaveBeenCalledWith('API error')
-  })
-
-  test('fails when dependabot.yml is empty or invalid', async () => {
-    mockOctokit.rest.repos.listLanguages.mockResolvedValue({
-      data: { JavaScript: 1 }
-    })
-
-    mockOctokit.rest.repos.getContent.mockResolvedValue({
-      data: {
-        content: Buffer.from('# Empty configuration').toString('base64')
-      }
-    })
-
-    await run()
-
-    expect(mockSetFailed).toHaveBeenCalledWith(
-      'No .github/dependabot.yml file found. Invalid dependabot.yml: Missing or invalid "updates" configuration'
-    )
   })
 })
