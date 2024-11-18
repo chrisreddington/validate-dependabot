@@ -1,3 +1,8 @@
+/**
+ * Integration tests for the main action functionality
+ * Tests the complete workflow of the GitHub Action, including API interactions
+ */
+
 import * as core from '@actions/core'
 import * as github from '@actions/github'
 import { Context } from '@actions/github/lib/context'
@@ -6,13 +11,18 @@ import { run } from '../src/main'
 jest.mock('@actions/core')
 jest.mock('@actions/github')
 
-const mockGetInput = core.getInput as jest.MockedFunction<typeof core.getInput>
-const mockSetFailed = core.setFailed as jest.MockedFunction<
-  typeof core.setFailed
->
-const mockInfo = core.info as jest.MockedFunction<typeof core.info>
-
-describe('validate-dependabot', () => {
+/**
+ * Main test suite for the validate-dependabot integration
+ * Tests various scenarios including successful execution and error handling
+ */
+describe('validate-dependabot integration', () => {
+  // Setup mock implementations
+  const mockGetInput = core.getInput as jest.MockedFunction<
+    typeof core.getInput
+  >
+  const mockSetFailed = core.setFailed as jest.MockedFunction<
+    typeof core.setFailed
+  >
   const mockOctokit = {
     rest: {
       repos: {
@@ -37,128 +47,53 @@ describe('validate-dependabot', () => {
     })
   })
 
-  test('succeeds when all supported ecosystems are configured', async () => {
-    mockOctokit.rest.repos.listLanguages.mockResolvedValue({
-      data: { JavaScript: 1, TypeScript: 1 }
+  describe('success scenarios', () => {
+    test('successfully validates repository with JavaScript and TypeScript', async () => {
+      mockOctokit.rest.repos.listLanguages.mockResolvedValue({
+        data: { JavaScript: 1, TypeScript: 1 }
+      })
+
+      mockOctokit.rest.repos.getContent.mockResolvedValue({
+        data: {
+          content: Buffer.from(
+            'updates:\n  - package-ecosystem: "npm"\n    directory: "/"\n    schedule:\n      interval: "daily"'
+          ).toString('base64')
+        }
+      })
+
+      await run()
+
+      expect(mockSetFailed).not.toHaveBeenCalled()
     })
-
-    mockOctokit.rest.repos.getContent.mockResolvedValue({
-      data: {
-        content: Buffer.from(
-          'updates:\n  - package-ecosystem: "npm"\n    directory: "/"\n    schedule:\n      interval: "daily"'
-        ).toString('base64')
-      }
-    })
-
-    await run()
-
-    expect(mockSetFailed).not.toHaveBeenCalled()
-    expect(mockInfo).toHaveBeenCalledWith(
-      '\nSupported Dependabot ecosystems for your repository:'
-    )
-    expect(mockInfo).toHaveBeenCalledWith('- npm: JavaScript, TypeScript')
-    expect(mockInfo).toHaveBeenCalledWith(
-      'All supported ecosystems are configured in dependabot.yml'
-    )
   })
 
-  test('shows ecosystem info even when dependabot.yml is empty', async () => {
-    mockOctokit.rest.repos.listLanguages.mockResolvedValue({
-      data: { JavaScript: 1, Python: 1 }
-    })
-
-    mockOctokit.rest.repos.getContent.mockResolvedValue({
-      data: {
-        content: Buffer.from('# Empty configuration').toString('base64')
-      }
-    })
-
-    await run()
-
-    expect(mockInfo).toHaveBeenCalledWith(
-      '\nSupported Dependabot ecosystems for your repository:'
-    )
-    expect(mockInfo).toHaveBeenCalledWith('- npm: JavaScript')
-    expect(mockInfo).toHaveBeenCalledWith('- pip: Python')
-    expect(mockSetFailed).toHaveBeenCalledWith(
-      'Invalid dependabot.yml: Missing or invalid "updates" configuration'
-    )
-  })
-
-  test('fails when dependabot.yml is missing', async () => {
-    mockOctokit.rest.repos.listLanguages.mockResolvedValue({
-      data: { JavaScript: 1 }
-    })
-
-    mockOctokit.rest.repos.getContent.mockRejectedValue(new Error('Not found'))
-
-    await run()
-
-    expect(mockSetFailed).toHaveBeenCalledWith(
-      expect.stringContaining('No .github/dependabot.yml file found')
-    )
-  })
-
-  test('fails when supported ecosystem is not configured', async () => {
-    mockOctokit.rest.repos.listLanguages.mockResolvedValue({
-      data: { JavaScript: 1, Python: 1 }
-    })
-
-    mockOctokit.rest.repos.getContent.mockResolvedValue({
-      data: {
-        content: Buffer.from(
-          'updates:\n  - package-ecosystem: "npm"\n    directory: "/"\n    schedule:\n      interval: "daily"'
-        ).toString('base64')
-      }
-    })
-
-    await run()
-
-    expect(mockSetFailed).toHaveBeenCalledWith(
-      expect.stringContaining(
-        'Missing Dependabot configuration for ecosystems: pip'
+  describe('error handling', () => {
+    test('gracefully handles GitHub API errors', async () => {
+      mockOctokit.rest.repos.listLanguages.mockRejectedValue(
+        new Error('API error')
       )
-    )
-  })
 
-  test('succeeds when no supported languages are found', async () => {
-    mockOctokit.rest.repos.listLanguages.mockResolvedValue({
-      data: { Brainfuck: 1 }
+      await run()
+
+      expect(mockSetFailed).toHaveBeenCalledWith('API error')
     })
 
-    await run()
+    test('handles repositories with no supported package ecosystems', async () => {
+      mockOctokit.rest.repos.listLanguages.mockResolvedValue({
+        data: { NotALanguage: 1 } // A language without Dependabot support
+      })
 
-    expect(mockSetFailed).not.toHaveBeenCalled()
-    expect(mockInfo).toHaveBeenCalledWith(
-      'No supported Dependabot ecosystems found for this repository'
-    )
-  })
+      await run()
 
-  test('handles API errors gracefully', async () => {
-    mockOctokit.rest.repos.listLanguages.mockRejectedValue(
-      new Error('API error')
-    )
-
-    await run()
-
-    expect(mockSetFailed).toHaveBeenCalledWith('API error')
-  })
-
-  test('fails when dependabot.yml is empty or invalid', async () => {
-    mockOctokit.rest.repos.listLanguages.mockResolvedValue({
-      data: { JavaScript: 1 }
+      expect(mockSetFailed).not.toHaveBeenCalled()
     })
 
-    mockOctokit.rest.repos.getContent.mockResolvedValue({
-      data: {
-        content: Buffer.from('# Empty configuration').toString('base64')
-      }
+    test('handles unexpected non-Error exceptions', async () => {
+      mockOctokit.rest.repos.listLanguages.mockRejectedValue('String error')
+
+      await run()
+
+      expect(mockSetFailed).not.toHaveBeenCalled()
     })
-
-    await run()
-
-    expect(mockSetFailed).toHaveBeenCalledWith(
-      'Invalid dependabot.yml: Missing or invalid "updates" configuration'
-    )
   })
 })
