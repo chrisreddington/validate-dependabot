@@ -3,6 +3,11 @@ import * as github from '@actions/github'
 import { getEcosystemLanguageMapping } from './ecosystem-mapping'
 import { DependabotValidator } from './dependabot-validator'
 
+/**
+ * Main execution function for the validate-dependabot action
+ * Validates that a repository's dependabot.yml includes configurations for all detected ecosystems
+ * @throws {Error} When GitHub token is missing or API calls fail
+ */
 export async function run(): Promise<void> {
   try {
     core.debug('Starting validate-dependabot action')

@@ -34038,11 +34038,26 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.DependabotValidator = void 0;
 const core = __importStar(__nccwpck_require__(7484));
 const yaml = __importStar(__nccwpck_require__(4281));
+/**
+ * Validates Dependabot configuration against repository's detected ecosystems
+ */
 class DependabotValidator {
     octokit;
+    /**
+     * Creates a new DependabotValidator instance
+     * @param octokit - Authenticated GitHub API client
+     */
     constructor(octokit) {
         this.octokit = octokit;
     }
+    /**
+     * Validates that all supported ecosystems are configured in dependabot.yml
+     * @param owner - Repository owner
+     * @param repo - Repository name
+     * @param ref - Git reference (branch/tag/commit)
+     * @param supportedEcosystems - Set of package ecosystems that should be configured
+     * @throws {Error} When dependabot.yml is missing or invalid
+     */
     async validateConfiguration(owner, repo, ref, supportedEcosystems) {
         try {
             const dependabotConfig = await this.getDependabotConfig(owner, repo, ref);
@@ -34058,6 +34073,14 @@ class DependabotValidator {
             }
         }
     }
+    /**
+     * Fetches and parses the dependabot.yml configuration file
+     * @param owner - Repository owner
+     * @param repo - Repository name
+     * @param ref - Git reference
+     * @returns Parsed dependabot configuration
+     * @throws {Error} When file is missing or invalid
+     */
     async getDependabotConfig(owner, repo, ref) {
         const { data: dependabotConfig } = await this.octokit.rest.repos.getContent({
             owner,
@@ -34070,12 +34093,23 @@ class DependabotValidator {
         }
         return yaml.load(Buffer.from(dependabotConfig.content, 'base64').toString());
     }
+    /**
+     * Extracts configured package ecosystems from dependabot.yml
+     * @param config - Parsed dependabot configuration
+     * @returns Set of configured package ecosystems
+     * @throws {Error} When configuration is invalid
+     */
     getConfiguredEcosystems(config) {
         if (!config || !config.updates || !Array.isArray(config.updates)) {
             throw new Error('Invalid dependabot.yml: Missing or invalid "updates" configuration');
         }
         return new Set(config.updates.map(u => u['package-ecosystem']));
     }
+    /**
+     * Validates that all supported ecosystems are configured
+     * @param supported - Set of ecosystems that should be configured
+     * @param configured - Set of ecosystems actually configured
+     */
     validateEcosystems(supported, configured) {
         const missingEcosystems = [...supported].filter(eco => !configured.has(eco));
         if (missingEcosystems.length > 0) {
@@ -34123,6 +34157,10 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.SUPPORTED_ECOSYSTEMS = void 0;
 exports.getEcosystemLanguageMapping = getEcosystemLanguageMapping;
 const core = __importStar(__nccwpck_require__(7484));
+/**
+ * Mapping of package ecosystems to their supported programming languages
+ * Used to determine which Dependabot ecosystems should be configured based on repository languages
+ */
 exports.SUPPORTED_ECOSYSTEMS = {
     npm: ['JavaScript', 'TypeScript'],
     pip: ['Python'],
@@ -34135,6 +34173,11 @@ exports.SUPPORTED_ECOSYSTEMS = {
     mix: ['Elixir'],
     gradle: ['Java', 'Kotlin']
 };
+/**
+ * Creates a mapping between Dependabot ecosystems and repository languages
+ * @param repoLanguages - Array of programming languages detected in the repository
+ * @returns Map of ecosystem names to their matching languages found in the repository
+ */
 function getEcosystemLanguageMapping(repoLanguages) {
     core.debug("Mapping Dependabot's supported ecosystems to repository languages");
     const mapping = new Map();
@@ -34186,6 +34229,11 @@ const core = __importStar(__nccwpck_require__(7484));
 const github = __importStar(__nccwpck_require__(3228));
 const ecosystem_mapping_1 = __nccwpck_require__(6888);
 const dependabot_validator_1 = __nccwpck_require__(4478);
+/**
+ * Main execution function for the validate-dependabot action
+ * Validates that a repository's dependabot.yml includes configurations for all detected ecosystems
+ * @throws {Error} When GitHub token is missing or API calls fail
+ */
 async function run() {
     try {
         core.debug('Starting validate-dependabot action');

@@ -1,6 +1,10 @@
 import * as core from '@actions/core'
 import { EcosystemMapping } from './types'
 
+/**
+ * Mapping of package ecosystems to their supported programming languages
+ * Used to determine which Dependabot ecosystems should be configured based on repository languages
+ */
 export const SUPPORTED_ECOSYSTEMS: EcosystemMapping = {
   npm: ['JavaScript', 'TypeScript'],
   pip: ['Python'],
@@ -14,6 +18,11 @@ export const SUPPORTED_ECOSYSTEMS: EcosystemMapping = {
   gradle: ['Java', 'Kotlin']
 }
 
+/**
+ * Creates a mapping between Dependabot ecosystems and repository languages
+ * @param repoLanguages - Array of programming languages detected in the repository
+ * @returns Map of ecosystem names to their matching languages found in the repository
+ */
 export function getEcosystemLanguageMapping(
   repoLanguages: string[]
 ): Map<string, string[]> {
