@@ -81,7 +81,7 @@ describe('validate-dependabot', () => {
     expect(mockInfo).toHaveBeenCalledWith('- npm: JavaScript')
     expect(mockInfo).toHaveBeenCalledWith('- pip: Python')
     expect(mockSetFailed).toHaveBeenCalledWith(
-      'Invalid dependabot.yml: Missing or invalid "updates" configuration'
+      'No .github/dependabot.yml file found. Invalid dependabot.yml: Missing or invalid "updates" configuration'
     )
   })
 
@@ -158,7 +158,7 @@ describe('validate-dependabot', () => {
     await run()
 
     expect(mockSetFailed).toHaveBeenCalledWith(
-      'Invalid dependabot.yml: Missing or invalid "updates" configuration'
+      'No .github/dependabot.yml file found. Invalid dependabot.yml: Missing or invalid "updates" configuration'
     )
   })
 })
