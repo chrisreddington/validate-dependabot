@@ -1,14 +1,15 @@
-# Dependabot Validator Action
+# Validate Dependabot Configuration
 
 [![GitHub Super-Linter](https://github.com/chrisreddington/validate-dependabot/actions/workflows/linter.yml/badge.svg)](https://github.com/chrisreddington/validate-dependabot)
 ![CI](https://github.com/chrisreddington/validate-dependabot/actions/workflows/ci.yml/badge.svg)
 [![Check dist/](https://github.com/chrisreddington/validate-dependabot/actions/workflows/check-dist.yml/badge.svg)](https://github.com/chrisreddington/validate-dependabot/actions/workflows/check-dist.yml)
 [![CodeQL](https://github.com/chrisreddington/validate-dependabot/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/chrisreddington/validate-dependabot/actions/workflows/codeql-analysis.yml)
 [![Coverage](./badges/coverage.svg)](./badges/coverage.svg)
+[![Validate Repository Configuration](https://github.com/chrisreddington/validate-dependabot/actions/workflows/baseline.yml/badge.svg)](https://github.com/chrisreddington/validate-dependabot/actions/workflows/baseline.yml)
 
 This action validates that your repository has Dependabot configured for all
-supported package ecosystems based on the programming languages used in your
-repository.
+supported package ecosystems (via dependabot.yml) based on the programming
+languages used in your repository.
 
 ## What it does
 
@@ -33,6 +34,9 @@ repository.
 | mix             | Elixir                 |
 | gradle          | Java, Kotlin           |
 
+For the most up to date list, please check
+[the GitHub docs](https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file#package-ecosystem).
+
 ## Usage
 
 Add this action to your workflow:
@@ -50,7 +54,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Validate Dependabot Configuration
-        uses: chrisreddington/validate-dependabot@v1
+        uses: chrisreddington/validate-dependabot@v0.0.1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
