@@ -9,7 +9,7 @@
 
 This action validates that your repository has Dependabot configured for all
 supported package ecosystems (via dependabot.yml) based on the programming
-languagesused in your repository.
+languages used in your repository.
 
 ## What it does
 
