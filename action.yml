@@ -1,7 +1,7 @@
 name: 'Validate Dependabot Configuration'
 description:
-  'Validate that dependabot.yml is configured for all supported languages that are
-  present in the repository.'
+  'Validate that dependabot.yml is configured for all supported languages that
+  are present in the repository.'
 author: 'chrisreddington'
 
 # Add your action's branding here. This will appear on the GitHub Marketplace.

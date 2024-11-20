@@ -34,7 +34,8 @@ languages used in your repository.
 | mix             | Elixir                 |
 | gradle          | Java, Kotlin           |
 
-For the most up to date list, please check [the GitHub docs](https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file#package-ecosystem).
+For the most up to date list, please check
+[the GitHub docs](https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file#package-ecosystem).
 
 ## Usage
 
