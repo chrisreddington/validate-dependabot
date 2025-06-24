@@ -89,7 +89,6 @@ updates:
 The action may fail with the following messages:
 
 1. No .github/dependabot.yml file found
-
    - Create a dependabot.yml file in your .github directory
    - Ensure the file has correct YAML syntax
 
