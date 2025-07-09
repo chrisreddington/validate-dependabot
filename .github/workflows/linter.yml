@@ -46,5 +46,10 @@ jobs:
           VALIDATE_ALL_CODEBASE: true
           VALIDATE_JAVASCRIPT_STANDARD: false
           VALIDATE_JSCPD: false
+          VALIDATE_MARKDOWN_PRETTIER: false
           VALIDATE_TYPESCRIPT_STANDARD: false
           VALIDATE_TYPESCRIPT_ES: false # handled in CI, due to current lack of support for ESLint 9.
+
+      - name: Check Prettier formatting
+        id: prettier-check
+        run: npm run format:check
