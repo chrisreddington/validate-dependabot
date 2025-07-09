@@ -1,3 +1,6 @@
 dist/
 node_modules/
 coverage/
+github_conf/
+**/*.generated.*
+**/*_conf/

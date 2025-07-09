@@ -36,6 +36,10 @@ jobs:
         id: install
         run: npm ci
 
+      - name: Check Prettier formatting
+        id: prettier-check
+        run: npm run format:check
+
       - name: Lint Codebase
         id: super-linter
         uses: super-linter/super-linter/slim@12150456a73e248bdc94d0794898f94e23127c88 # v7.4.0
@@ -49,7 +53,3 @@ jobs:
           VALIDATE_MARKDOWN_PRETTIER: false
           VALIDATE_TYPESCRIPT_STANDARD: false
           VALIDATE_TYPESCRIPT_ES: false # handled in CI, due to current lack of support for ESLint 9.
-
-      - name: Check Prettier formatting
-        id: prettier-check
-        run: npm run format:check
