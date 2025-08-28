@@ -7,7 +7,7 @@
 [![Coverage](./badges/coverage.svg)](./badges/coverage.svg)
 [![Validate Repository Configuration](https://github.com/chrisreddington/validate-dependabot/actions/workflows/baseline.yml/badge.svg)](https://github.com/chrisreddington/validate-dependabot/actions/workflows/baseline.yml)
 
-This action validates that your repository has Dependabot configured for all
+This action validates that your repository has Dependabot configured for most
 supported package ecosystems (via dependabot.yml) based on the programming
 languages used in your repository.
 
