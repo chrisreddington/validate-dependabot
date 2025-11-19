@@ -4,7 +4,6 @@
   "version": "0.0.0",
   "author": "chrisreddington",
   "private": true,
-  "type": "module",
   "homepage": "https://github.com/chrisreddington/validate-dependabot",
   "repository": {
     "type": "git",
