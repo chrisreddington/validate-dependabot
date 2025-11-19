@@ -73,7 +73,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.32.0",
-    "@github/local-action": "^5.1.0",
+    "@github/local-action": "^6.0.0",
     "@jest/globals": "^30.0.5",
     "@octokit/plugin-paginate-rest": "^13.1.1",
     "@octokit/plugin-rest-endpoint-methods": "^16.0.0",
