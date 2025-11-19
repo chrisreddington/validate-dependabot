@@ -4,15 +4,16 @@
  */
 
 import { getEcosystemLanguageMapping } from '../src/ecosystem-mapping'
+import { vi, describe, test, expect, beforeEach } from 'vitest'
 
-jest.mock('@actions/core')
+vi.mock('@actions/core')
 
 /**
  * Test suite for the ecosystem mapping functionality
  */
 describe('ecosystem-mapping module', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('language mapping', () => {

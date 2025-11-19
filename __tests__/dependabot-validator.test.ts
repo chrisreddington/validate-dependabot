@@ -6,18 +6,19 @@
 import * as core from '@actions/core'
 import * as github from '@actions/github'
 import { DependabotValidator } from '../src/dependabot-validator'
+import { vi, describe, test, expect, beforeEach } from 'vitest'
 
-jest.mock('@actions/core')
+vi.mock('@actions/core')
 
 /**
  * Test suite for the DependabotValidator class
  */
 describe('DependabotValidator', () => {
   // Setup test environment and mocks
-  const mockSetFailed = jest.mocked(core.setFailed)
-  const mockInfo = jest.mocked(core.info)
+  const mockSetFailed = vi.mocked(core.setFailed)
+  const mockInfo = vi.mocked(core.info)
 
-  const mockGetContent = jest.fn()
+  const mockGetContent = vi.fn()
   const mockOctokit = {
     rest: {
       repos: {
@@ -29,7 +30,7 @@ describe('DependabotValidator', () => {
   const validator = new DependabotValidator(mockOctokit)
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('configuration validation', () => {

@@ -7,9 +7,17 @@ import * as core from '@actions/core'
 import * as github from '@actions/github'
 import { Context } from '@actions/github/lib/context'
 import { run } from '../src/main'
+import {
+  vi,
+  describe,
+  test,
+  expect,
+  beforeEach,
+  type MockInstance
+} from 'vitest'
 
-jest.mock('@actions/core')
-jest.mock('@actions/github')
+vi.mock('@actions/core')
+vi.mock('@actions/github')
 
 /**
  * Main test suite for the validate-dependabot integration
@@ -17,25 +25,23 @@ jest.mock('@actions/github')
  */
 describe('validate-dependabot integration', () => {
   // Setup mock implementations
-  const mockGetInput = core.getInput as jest.MockedFunction<
-    typeof core.getInput
-  >
-  const mockSetFailed = core.setFailed as jest.MockedFunction<
-    typeof core.setFailed
-  >
+  let mockGetInput: MockInstance<typeof core.getInput>
+  let mockSetFailed: MockInstance<typeof core.setFailed>
   const mockOctokit = {
     rest: {
       repos: {
-        listLanguages: jest.fn(),
-        getContent: jest.fn()
+        listLanguages: vi.fn(),
+        getContent: vi.fn()
       }
     }
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
+    mockGetInput = vi.spyOn(core, 'getInput')
+    mockSetFailed = vi.spyOn(core, 'setFailed')
     mockGetInput.mockReturnValue('mock-token')
-    ;(github.getOctokit as jest.Mock).mockReturnValue(mockOctokit)
+    vi.mocked(github.getOctokit).mockReturnValue(mockOctokit)
     Object.defineProperty(github, 'context', {
       value: {
         repo: {
