@@ -24,6 +24,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node.js
         id: setup-node
@@ -36,13 +37,9 @@ jobs:
         id: install
         run: npm ci
 
-      - name: Check Prettier formatting
-        id: prettier-check
-        run: npm run format:check
-
       - name: Lint Codebase
         id: super-linter
-        uses: super-linter/super-linter/slim@5119dcd8011e92182ce8219d9e9efc82f16fddb6 # v8.0.0
+        uses: super-linter/super-linter/slim@2bdd90ed3262e023ac84bf8fe35dc480721fc1f2 # v8.2.1
         env:
           DEFAULT_BRANCH: main
           FILTER_REGEX_EXCLUDE: dist/**/*
@@ -50,6 +47,7 @@ jobs:
           VALIDATE_ALL_CODEBASE: true
           VALIDATE_JAVASCRIPT_STANDARD: false
           VALIDATE_JSCPD: false
-          VALIDATE_MARKDOWN_PRETTIER: false
           VALIDATE_TYPESCRIPT_STANDARD: false
           VALIDATE_TYPESCRIPT_ES: false # handled in CI, due to current lack of support for ESLint 9.
+          VALIDATE_BIOME_FORMAT: false
+          VALIDATE_BIOME_LINT: false
