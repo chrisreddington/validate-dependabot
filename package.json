@@ -46,7 +46,7 @@
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.39.1",
     "@github/local-action": "^6.0.2",
-    "@octokit/plugin-paginate-rest": "^13.1.1",
+    "@octokit/plugin-paginate-rest": "^14.0.0",
     "@octokit/plugin-rest-endpoint-methods": "^16.0.0",
     "@octokit/rest": "^22.0.1",
     "@types/js-yaml": "^4.0.9",
