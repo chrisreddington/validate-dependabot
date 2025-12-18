@@ -50,7 +50,7 @@
     "@octokit/plugin-rest-endpoint-methods": "^17.0.0",
     "@octokit/rest": "^22.0.1",
     "@types/js-yaml": "^4.0.9",
-    "@types/node": "^24.10.1",
+    "@types/node": "^25.0.0",
     "@typescript-eslint/eslint-plugin": "^8.49.0",
     "@typescript-eslint/parser": "^8.32.1",
     "@vercel/ncc": "^0.38.4",
