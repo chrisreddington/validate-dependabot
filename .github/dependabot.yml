@@ -9,7 +9,7 @@ updates:
     groups:
       actions-minor-patch:
         patterns:
-          - "*"
+          - '*'
         update-types:
           - minor
           - patch
