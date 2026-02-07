@@ -7,10 +7,9 @@ updates:
     cooldown:
       default-days: 7
     groups:
-      actions-minor:
-        update-types:
-          - minor
-          - patch
+      actions-all:
+        patterns:
+          - "*"
 
   - package-ecosystem: npm
     directory: /
@@ -21,10 +20,8 @@ updates:
     groups:
       npm-development:
         dependency-type: development
-        update-types:
-          - minor
-          - patch
       npm-production:
         dependency-type: production
         update-types:
+          - minor
           - patch
