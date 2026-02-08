@@ -1,7 +1,7 @@
 name: Dependabot Fix
 
 on:
-  workflow_run:
+  workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows:
       - Continuous Integration
       - Check Transpiled JavaScript
@@ -86,9 +86,10 @@ jobs:
       - name: Generate and apply fix
         env:
           GH_TOKEN: ${{ secrets.COPILOT_TOKEN }}
+          LOG_FILE: ${{ steps.logs.outputs.log_file }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
         run: |
-          LOGS=$(cat "${{ steps.logs.outputs.log_file }}")
-          WORKFLOW_NAME="${{ github.event.workflow_run.name }}"
+          LOGS=$(cat "$LOG_FILE")
 
           # Ask Copilot CLI to diagnose and fix
           copilot -i "The GitHub Actions workflow '${WORKFLOW_NAME}' failed on a \
@@ -109,6 +110,7 @@ jobs:
       - name: Commit and push fix
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             git config user.name "github-actions[bot]"
@@ -116,7 +118,7 @@ jobs:
             git add -A
             git commit -m "fix: auto-fix CI failure via Copilot CLI
 
-          Automated fix for failing ${{ github.event.workflow_run.name }} workflow.
+          Automated fix for failing ${WORKFLOW_NAME} workflow.
           Applied by Copilot CLI based on error log analysis."
             git push
             echo "✅ Fix committed and pushed"
