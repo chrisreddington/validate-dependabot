@@ -1,0 +1,127 @@
+name: Dependabot Fix
+
+on: #zizmor: ignore[dangerous-triggers]
+  workflow_run:
+    workflows:
+      - Continuous Integration
+      - Check Transpiled JavaScript
+      - Lint Codebase
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  dependabot-fix:
+    name: Fix Failing Dependabot PR
+    runs-on: ubuntu-latest
+    environment: dependabot-fix
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.pull_requests[0] &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]'
+
+    steps:
+      - name: Get PR details
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER="${{ github.event.workflow_run.pull_requests[0].number }}"
+          echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+
+          PR_BRANCH=$(gh pr view "$PR_NUMBER" \
+            --repo "${{ github.repository }}" \
+            --json headRefName --jq '.headRefName')
+          echo "branch=$PR_BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout PR branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ steps.pr.outputs.branch }}
+          persist-credentials: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Fetch failing workflow logs
+        id: logs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          # Get failed job logs
+          FAILED_JOBS=$(gh api \
+            "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs" \
+            --jq '.jobs[] | select(.conclusion == "failure") | .id')
+
+          LOG_FILE=$(mktemp)
+          for JOB_ID in $FAILED_JOBS; do
+            echo "=== Job $JOB_ID ===" >> "$LOG_FILE"
+            gh api \
+              "repos/${{ github.repository }}/actions/jobs/$JOB_ID/logs" \
+              >> "$LOG_FILE" 2>&1 || true
+          done
+
+          # Truncate to last 500 lines to stay within prompt limits
+          tail -500 "$LOG_FILE" > "${LOG_FILE}.trimmed"
+          mv "${LOG_FILE}.trimmed" "$LOG_FILE"
+
+          echo "log_file=$LOG_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Copilot CLI
+        uses: mvkaran/setup-copilot-cli@d05a47209e6b3185c9c55702bef49f28e6eebef7 # v1
+        with:
+          token: ${{ secrets.COPILOT_TOKEN }}
+
+      - name: Generate and apply fix
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_TOKEN }}
+          LOG_FILE: ${{ steps.logs.outputs.log_file }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+        run: |
+          LOGS=$(cat "$LOG_FILE")
+
+          # Ask Copilot CLI to diagnose and fix
+          copilot -i "The GitHub Actions workflow '${WORKFLOW_NAME}' failed on a \
+          dependabot PR in this repository. Here are the failing logs:
+
+          ${LOGS}
+
+          Please analyze the failure and make the necessary code changes to fix it. \
+          Focus only on fixing the specific error shown in the logs. \
+          Do not make unrelated changes."
+
+      - name: Rebuild dist if source changed
+        run: |
+          if git diff --name-only | grep -q '^src/'; then
+            npm run bundle
+          fi
+
+      - name: Commit and push fix
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "fix: auto-fix CI failure via Copilot CLI
+
+          Automated fix for failing ${WORKFLOW_NAME} workflow.
+          Applied by Copilot CLI based on error log analysis."
+            git push
+            echo "✅ Fix committed and pushed"
+          else
+            echo "ℹ️ No changes to commit — Copilot CLI did not modify any files"
+          fi
