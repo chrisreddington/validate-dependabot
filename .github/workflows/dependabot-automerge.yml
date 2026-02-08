@@ -10,7 +10,6 @@ jobs:
   dependabot-automerge:
     runs-on: ubuntu-latest
     if: github.event.pull_request.user.login == 'dependabot[bot]'
-
     steps:
       - name: Fetch Dependabot Metadata
         id: metadata

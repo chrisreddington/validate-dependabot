@@ -7,7 +7,9 @@ updates:
     cooldown:
       default-days: 7
     groups:
-      actions-minor:
+      actions-minor-patch:
+        patterns:
+          - '*'
         update-types:
           - minor
           - patch
@@ -27,4 +29,5 @@ updates:
       npm-production:
         dependency-type: production
         update-types:
+          - minor
           - patch
