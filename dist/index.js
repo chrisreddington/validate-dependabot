@@ -8248,7 +8248,7 @@ function requireUtil$4 () {
 	 */
 	function includesCredentials (url) {
 	  // A URL includes credentials if its username or password is not the empty string.
-	  return !!(url.username && url.password)
+	  return !!(url.username || url.password)
 	}
 
 	/**
@@ -14419,16 +14419,14 @@ function requireEnvHttpProxyAgent () {
 	      if (entry.port && entry.port !== port) {
 	        continue // Skip if ports don't match.
 	      }
-	      if (!/^[.*]/.test(entry.hostname)) {
-	        // No wildcards, so don't proxy only if there is not an exact match.
-	        if (hostname === entry.hostname) {
-	          return false
-	        }
-	      } else {
-	        // Don't proxy if the hostname ends with the no_proxy host.
-	        if (hostname.endsWith(entry.hostname.replace(/^\*/, ''))) {
-	          return false
-	        }
+	      // Don't proxy if the hostname is equal with the no_proxy host.
+	      if (hostname === entry.hostname) {
+	        return false
+	      }
+	      // Don't proxy if the hostname is the subdomain of the no_proxy host.
+	      // Reference - https://github.com/denoland/deno/blob/6fbce91e40cc07fc6da74068e5cc56fdd40f7b4c/ext/fetch/proxy.rs#L485
+	      if (hostname.slice(-(entry.hostname.length + 1)) === `.${entry.hostname}`) {
+	        return false
 	      }
 	    }
 
@@ -14447,7 +14445,8 @@ function requireEnvHttpProxyAgent () {
 	      }
 	      const parsed = entry.match(/^(.+):(\d+)$/);
 	      noProxyEntries.push({
-	        hostname: (parsed ? parsed[1] : entry).toLowerCase(),
+	        // strip leading dot or asterisk with dot
+	        hostname: (parsed ? parsed[1] : entry).replace(/^\*?\./, '').toLowerCase(),
 	        port: parsed ? Number.parseInt(parsed[2], 10) : 0
 	      });
 	    }
@@ -21584,57 +21583,92 @@ function requireCacheHandler () {
 	    // Not modified, re-use the cached value
 	    // https://www.rfc-editor.org/rfc/rfc9111.html#name-handling-304-not-modified
 	    if (statusCode === 304) {
-	      /**
-	       * @type {import('../../types/cache-interceptor.d.ts').default.CacheValue}
-	       */
-	      const cachedValue = this.#store.get(this.#cacheKey);
-	      if (!cachedValue) {
-	        // Do not create a new cache entry, as a 304 won't have a body - so cannot be cached.
-	        return downstreamOnHeaders()
-	      }
+	      const handle304 = (cachedValue) => {
+	        if (!cachedValue) {
+	          // Do not create a new cache entry, as a 304 won't have a body - so cannot be cached.
+	          return downstreamOnHeaders()
+	        }
 
-	      // Re-use the cached value: statuscode, statusmessage, headers and body
-	      value.statusCode = cachedValue.statusCode;
-	      value.statusMessage = cachedValue.statusMessage;
-	      value.etag = cachedValue.etag;
-	      value.headers = { ...cachedValue.headers, ...strippedHeaders };
+	        // Re-use the cached value: statuscode, statusmessage, headers and body
+	        value.statusCode = cachedValue.statusCode;
+	        value.statusMessage = cachedValue.statusMessage;
+	        value.etag = cachedValue.etag;
+	        value.headers = { ...cachedValue.headers, ...strippedHeaders };
 
-	      downstreamOnHeaders();
+	        downstreamOnHeaders();
 
-	      this.#writeStream = this.#store.createWriteStream(this.#cacheKey, value);
+	        this.#writeStream = this.#store.createWriteStream(this.#cacheKey, value);
 
-	      if (!this.#writeStream || !cachedValue?.body) {
-	        return
-	      }
+	        if (!this.#writeStream || !cachedValue?.body) {
+	          return
+	        }
 
-	      const bodyIterator = cachedValue.body.values();
+	        if (typeof cachedValue.body.values === 'function') {
+	          const bodyIterator = cachedValue.body.values();
 
-	      const streamCachedBody = () => {
-	        for (const chunk of bodyIterator) {
-	          const full = this.#writeStream.write(chunk) === false;
-	          this.#handler.onResponseData?.(controller, chunk);
-	          // when stream is full stop writing until we get a 'drain' event
-	          if (full) {
-	            break
-	          }
+	          const streamCachedBody = () => {
+	            for (const chunk of bodyIterator) {
+	              const full = this.#writeStream.write(chunk) === false;
+	              this.#handler.onResponseData?.(controller, chunk);
+	              // when stream is full stop writing until we get a 'drain' event
+	              if (full) {
+	                break
+	              }
+	            }
+	          };
+
+	          this.#writeStream
+	            .on('error', function () {
+	              handler.#writeStream = undefined;
+	              handler.#store.delete(handler.#cacheKey);
+	            })
+	            .on('drain', () => {
+	              streamCachedBody();
+	            })
+	            .on('close', function () {
+	              if (handler.#writeStream === this) {
+	                handler.#writeStream = undefined;
+	              }
+	            });
+
+	          streamCachedBody();
+	        } else if (typeof cachedValue.body.on === 'function') {
+	          // Readable stream body (e.g. from async/remote cache stores)
+	          cachedValue.body
+	            .on('data', (chunk) => {
+	              this.#writeStream.write(chunk);
+	              this.#handler.onResponseData?.(controller, chunk);
+	            })
+	            .on('end', () => {
+	              this.#writeStream.end();
+	            })
+	            .on('error', () => {
+	              this.#writeStream = undefined;
+	              this.#store.delete(this.#cacheKey);
+	            });
+
+	          this.#writeStream
+	            .on('error', function () {
+	              handler.#writeStream = undefined;
+	              handler.#store.delete(handler.#cacheKey);
+	            })
+	            .on('close', function () {
+	              if (handler.#writeStream === this) {
+	                handler.#writeStream = undefined;
+	              }
+	            });
 	        }
 	      };
 
-	      this.#writeStream
-	        .on('error', function () {
-	          handler.#writeStream = undefined;
-	          handler.#store.delete(handler.#cacheKey);
-	        })
-	        .on('drain', () => {
-	          streamCachedBody();
-	        })
-	        .on('close', function () {
-	          if (handler.#writeStream === this) {
-	            handler.#writeStream = undefined;
-	          }
-	        });
-
-	      streamCachedBody();
+	      /**
+	       * @type {import('../../types/cache-interceptor.d.ts').default.CacheValue}
+	       */
+	      const result = this.#store.get(this.#cacheKey);
+	      if (result && typeof result.then === 'function') {
+	        result.then(handle304);
+	      } else {
+	        handle304(result);
+	      }
 	    } else {
 	      if (typeof resHeaders.etag === 'string' && isEtagUsable(resHeaders.etag)) {
 	        value.etag = resHeaders.etag;
@@ -22591,7 +22625,7 @@ function requireCache$1 () {
 
 	      // Start background revalidation (fire-and-forget)
 	      queueMicrotask(() => {
-	        let headers = {
+	        const headers = {
 	          ...opts.headers,
 	          'if-modified-since': new Date(result.cachedAt).toUTCString()
 	        };
@@ -22601,10 +22635,11 @@ function requireCache$1 () {
 	        }
 
 	        if (result.vary) {
-	          headers = {
-	            ...headers,
-	            ...result.vary
-	          };
+	          for (const key in result.vary) {
+	            if (result.vary[key] != null) {
+	              headers[key] = result.vary[key];
+	            }
+	          }
 	        }
 
 	        // Background revalidation - update cache if we get new data
@@ -22634,7 +22669,7 @@ function requireCache$1 () {
 	      withinStaleIfErrorThreshold = now < (result.staleAt + (staleIfErrorExpiry * 1000));
 	    }
 
-	    let headers = {
+	    const headers = {
 	      ...opts.headers,
 	      'if-modified-since': new Date(result.cachedAt).toUTCString()
 	    };
@@ -22644,10 +22679,11 @@ function requireCache$1 () {
 	    }
 
 	    if (result.vary) {
-	      headers = {
-	        ...headers,
-	        ...result.vary
-	      };
+	      for (const key in result.vary) {
+	        if (result.vary[key] != null) {
+	          headers[key] = result.vary[key];
+	        }
+	      }
 	    }
 
 	    // We need to revalidate the response
@@ -23337,8 +23373,6 @@ function requireDeduplicate () {
 	  // Convert to lowercase Set for case-insensitive header exclusion from deduplication key
 	  const excludeHeaderNamesSet = new Set(excludeHeaderNames.map(name => name.toLowerCase()));
 
-	  const safeMethodsToNotDeduplicate = util.safeHTTPMethods.filter(method => methods.includes(method) === false);
-
 	  /**
 	   * Map of pending requests for deduplication
 	   * @type {Map<string, DeduplicationHandler>}
@@ -23347,7 +23381,7 @@ function requireDeduplicate () {
 
 	  return dispatch => {
 	    return (opts, handler) => {
-	      if (!opts.origin || safeMethodsToNotDeduplicate.includes(opts.method)) {
+	      if (!opts.origin || methods.includes(opts.method) === false) {
 	        return dispatch(opts, handler)
 	      }
 
@@ -28931,6 +28965,41 @@ function requireFetch () {
 	          fetchParams.controller.terminate(error);
 
 	          reject(error);
+	        },
+
+	        onRequestUpgrade (_controller, status, headers, socket) {
+	          // We need to support 200 for websocket over h2 as per RFC-8441
+	          // Absence of session means H1
+	          if ((socket.session != null && status !== 200) || (socket.session == null && status !== 101)) {
+	            return false
+	          }
+
+	          const headersList = new HeadersList();
+
+	          for (const [name, value] of Object.entries(headers)) {
+	            if (value == null) {
+	              continue
+	            }
+
+	            const headerName = name.toLowerCase();
+
+	            if (Array.isArray(value)) {
+	              for (const entry of value) {
+	                headersList.append(headerName, String(entry), true);
+	              }
+	            } else {
+	              headersList.append(headerName, String(value), true);
+	            }
+	          }
+
+	          resolve({
+	            status,
+	            statusText: STATUS_CODES[status],
+	            headersList,
+	            socket
+	          });
+
+	          return true
 	        },
 
 	        onUpgrade (status, rawHeaders, socket) {
@@ -36871,7 +36940,7 @@ function isKeyOperator(operator) {
 function getValues(context, operator, key, modifier) {
   var value = context[key], result = [];
   if (isDefined(value) && value !== "") {
-    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    if (typeof value === "string" || typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") {
       value = value.toString();
       if (modifier && modifier !== "*") {
         value = value.substring(0, parseInt(modifier, 10));
@@ -37237,6 +37306,138 @@ function requireFastContentTypeParse () {
 
 var fastContentTypeParseExports = requireFastContentTypeParse();
 
+const noiseValue = /^-?\d+n+$/; // Noise - strings that match the custom format before being converted to it
+const originalStringify = JSON.stringify;
+const originalParse = JSON.parse;
+
+/*
+  Function to serialize value to a JSON string.
+  Converts BigInt values to a custom format (strings with digits and "n" at the end) and then converts them to proper big integers in a JSON string.
+*/
+const JSONStringify = (value, replacer, space) => {
+  if ("rawJSON" in JSON) {
+    return originalStringify(
+      value,
+      (key, value) => {
+        if (typeof value === "bigint") return JSON.rawJSON(value.toString());
+
+        if (Array.isArray(replacer) && replacer.includes(key)) return value;
+
+        return value;
+      },
+      space
+    );
+  }
+
+  if (!value) return originalStringify(value, replacer, space);
+
+  const bigInts = /([\[:])?"(-?\d+)n"($|([\\n]|\s)*(\s|[\\n])*[,\}\]])/g;
+  const noise = /([\[:])?("-?\d+n+)n("$|"([\\n]|\s)*(\s|[\\n])*[,\}\]])/g;
+  const convertedToCustomJSON = originalStringify(
+    value,
+    (key, value) => {
+      const isNoise =
+        typeof value === "string" && Boolean(value.match(noiseValue));
+
+      if (isNoise) return value.toString() + "n"; // Mark noise values with additional "n" to offset the deletion of one "n" during the processing
+
+      if (typeof value === "bigint") return value.toString() + "n";
+
+      if (Array.isArray(replacer) && replacer.includes(key)) return value;
+
+      return value;
+    },
+    space
+  );
+  const processedJSON = convertedToCustomJSON.replace(bigInts, "$1$2$3"); // Delete one "n" off the end of every BigInt value
+  const denoisedJSON = processedJSON.replace(noise, "$1$2$3"); // Remove one "n" off the end of every noisy string
+
+  return denoisedJSON;
+};
+
+/*
+  Function to check if the JSON.parse's context.source feature is supported.
+*/
+const isContextSourceSupported = () =>
+  JSON.parse("1", (_, __, context) => !!context && context.source === "1");
+
+/*
+  Faster (2x) and simpler function to parse JSON.
+  Based on JSON.parse's context.source feature, which is not universally available now.
+  Does not support the legacy custom format, used in the first version of this library.
+*/
+const JSONParseV2 = (text, reviver) => {
+  const intRegex = /^-?\d+$/;
+
+  return JSON.parse(text, (key, value, context) => {
+    const isBigNumber =
+      typeof value === "number" &&
+      (value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER);
+    const isInt = intRegex.test(context.source);
+    const isBigInt = isBigNumber && isInt;
+
+    if (isBigInt) return BigInt(context.source);
+
+    return value;
+  });
+};
+
+/*
+  Function to parse JSON.
+  If JSON has number values greater than Number.MAX_SAFE_INTEGER, we convert those values to a custom format, then parse them to BigInt values.
+  Other types of values are not affected and parsed as native JSON.parse() would parse them.
+*/
+const JSONParse = (text, reviver) => {
+  if (!text) return originalParse(text, reviver);
+
+  if (isContextSourceSupported()) return JSONParseV2(text); // Shortcut to a faster (2x) and simpler version
+
+  const MAX_INT = Number.MAX_SAFE_INTEGER.toString();
+  const MAX_DIGITS = MAX_INT.length;
+  const stringsOrLargeNumbers =
+    /"(?:\\.|[^"])*"|-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?/g;
+  const noiseValueWithQuotes = /^"-?\d+n+"$/; // Noise - strings that match the custom format before being converted to it
+  const customFormat = /^-?\d+n$/;
+
+  // Find and mark big numbers with "n"
+  const serializedData = text.replace(
+    stringsOrLargeNumbers,
+    (text, digits, fractional, exponential) => {
+      const isString = text[0] === '"';
+      const isNoise = isString && Boolean(text.match(noiseValueWithQuotes));
+
+      if (isNoise) return text.substring(0, text.length - 1) + 'n"'; // Mark noise values with additional "n" to offset the deletion of one "n" during the processing
+
+      const isFractionalOrExponential = fractional || exponential;
+      const isLessThanMaxSafeInt =
+        digits &&
+        (digits.length < MAX_DIGITS ||
+          (digits.length === MAX_DIGITS && digits <= MAX_INT)); // With a fixed number of digits, we can correctly use lexicographical comparison to do a numeric comparison
+
+      if (isString || isFractionalOrExponential || isLessThanMaxSafeInt)
+        return text;
+
+      return '"' + text + 'n"';
+    }
+  );
+
+  // Convert marked big numbers to BigInt
+  return originalParse(serializedData, (key, value, context) => {
+    const isCustomFormatBigInt =
+      typeof value === "string" && Boolean(value.match(customFormat));
+
+    if (isCustomFormatBigInt)
+      return BigInt(value.substring(0, value.length - 1));
+
+    const isNoiseValue =
+      typeof value === "string" && Boolean(value.match(noiseValue));
+
+    if (isNoiseValue) return value.substring(0, value.length - 1); // Remove one "n" off the end of the noisy string
+
+    return value;
+  });
+};
+
 class RequestError extends Error {
   name;
   /**
@@ -37279,7 +37480,7 @@ class RequestError extends Error {
 // pkg/dist-src/index.js
 
 // pkg/dist-src/version.js
-var VERSION$4 = "10.0.7";
+var VERSION$4 = "10.0.8";
 
 // pkg/dist-src/defaults.js
 var defaults_default = {
@@ -37307,7 +37508,7 @@ async function fetchWrapper(requestOptions) {
   }
   const log = requestOptions.request?.log || console;
   const parseSuccessResponseBody = requestOptions.request?.parseSuccessResponseBody !== false;
-  const body = isPlainObject(requestOptions.body) || Array.isArray(requestOptions.body) ? JSON.stringify(requestOptions.body) : requestOptions.body;
+  const body = isPlainObject(requestOptions.body) || Array.isArray(requestOptions.body) ? JSONStringify(requestOptions.body) : requestOptions.body;
   const requestHeaders = Object.fromEntries(
     Object.entries(requestOptions.headers).map(([name, value]) => [
       name,
@@ -37406,7 +37607,7 @@ async function getResponseData(response) {
     let text = "";
     try {
       text = await response.text();
-      return JSON.parse(text);
+      return JSONParse(text);
     } catch (err) {
       return text;
     }
