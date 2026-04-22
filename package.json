@@ -67,7 +67,7 @@
     "prettier-eslint": "^16.4.2",
     "rimraf": "^6.1.2",
     "rollup": "^4.57.1",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.2",
     "vitest": "^4.0.10"
   },
   "overrides": {
