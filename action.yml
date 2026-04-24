@@ -15,6 +15,16 @@ inputs:
       Personal access token (PAT) used to query the languages used in the
       repository.
     default: ${{ github.token }}
+  require-cooldown:
+    description: >
+      When set to 'true', the action will fail if any ecosystem update entry
+      in dependabot.yml is missing a cooldown configuration.
+    default: 'false'
+  require-groups:
+    description: >
+      When set to 'true', the action will fail if any ecosystem update entry
+      in dependabot.yml has no groups defined.
+    default: 'false'
 
 runs:
   using: node24
