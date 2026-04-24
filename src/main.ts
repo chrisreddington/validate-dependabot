@@ -42,7 +42,11 @@ export async function run(): Promise<void> {
       context.repo.owner,
       context.repo.repo,
       context.ref,
-      supportedEcosystems
+      supportedEcosystems,
+      {
+        requireCooldown: core.getBooleanInput('require-cooldown'),
+        requireGroups: core.getBooleanInput('require-groups')
+      }
     )
   } catch (error) {
     if (error instanceof Error) core.setFailed(error.message)

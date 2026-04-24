@@ -1,7 +1,12 @@
 import * as core from '@actions/core'
 import * as github from '@actions/github'
 import * as yaml from 'js-yaml'
-import { DependabotConfig } from './types'
+import {
+  DependabotConfig,
+  DependabotCooldown,
+  DependabotUpdate,
+  ValidationOptions
+} from './types'
 
 /**
  * Validates Dependabot configuration against repository's detected ecosystems
@@ -14,24 +19,35 @@ export class DependabotValidator {
   constructor(private octokit: ReturnType<typeof github.getOctokit>) {}
 
   /**
-   * Validates that all supported ecosystems are configured in dependabot.yml
+   * Validates that all supported ecosystems are configured in dependabot.yml,
+   * and optionally enforces cooldown and groups policies across all update entries.
    * @param owner - Repository owner
    * @param repo - Repository name
    * @param ref - Git reference (branch/tag/commit)
    * @param supportedEcosystems - Set of package ecosystems that should be configured
+   * @param options - Optional policy flags (requireCooldown, requireGroups)
    * @throws {Error} When dependabot.yml is missing or invalid
    */
   async validateConfiguration(
     owner: string,
     repo: string,
     ref: string,
-    supportedEcosystems: Set<string>
+    supportedEcosystems: Set<string>,
+    options: ValidationOptions = {}
   ): Promise<void> {
     try {
       const dependabotConfig = await this.getDependabotConfig(owner, repo, ref)
       const configuredEcosystems =
         this.getConfiguredEcosystems(dependabotConfig)
       this.validateEcosystems(supportedEcosystems, configuredEcosystems)
+
+      const updates = dependabotConfig.updates ?? []
+      if (options.requireCooldown) {
+        this.validateCooldown(updates)
+      }
+      if (options.requireGroups) {
+        this.validateGroups(updates)
+      }
     } catch (error) {
       if (error instanceof Error) {
         core.setFailed(`No .github/dependabot.yml file found. ${error.message}`)
@@ -105,6 +121,63 @@ export class DependabotValidator {
       )
     } else {
       core.info('All supported ecosystems are configured in dependabot.yml')
+    }
+  }
+
+  /**
+   * Validates that every update entry has at least one cooldown day configured.
+   * Iterates all entries (not just detected-language ecosystems) so that
+   * entries like github-actions are also checked.
+   * @param updates - All update entries from dependabot.yml
+   */
+  private validateCooldown(updates: DependabotUpdate[]): void {
+    const cooldownKeys: (keyof DependabotCooldown)[] = [
+      'default-days',
+      'semver-major-days',
+      'semver-minor-days',
+      'semver-patch-days'
+    ]
+
+    const missing = updates
+      .filter(update => {
+        const cooldown = update.cooldown
+        if (!cooldown || typeof cooldown !== 'object') return true
+        return !cooldownKeys.some(
+          key => cooldown[key] !== undefined && cooldown[key] !== null
+        )
+      })
+      .map(update => update['package-ecosystem'])
+
+    if (missing.length > 0) {
+      core.setFailed(
+        `Missing cooldown configuration for ecosystems: ${missing.join(', ')}`
+      )
+    } else {
+      core.info('All ecosystems have cooldown configured in dependabot.yml')
+    }
+  }
+
+  /**
+   * Validates that every update entry has at least one group defined.
+   * Iterates all entries (not just detected-language ecosystems) so that
+   * entries like github-actions are also checked.
+   * @param updates - All update entries from dependabot.yml
+   */
+  private validateGroups(updates: DependabotUpdate[]): void {
+    const missing = updates
+      .filter(update => {
+        const groups = update.groups
+        if (!groups || typeof groups !== 'object') return true
+        return Object.keys(groups).length === 0
+      })
+      .map(update => update['package-ecosystem'])
+
+    if (missing.length > 0) {
+      core.setFailed(
+        `Missing groups configuration for ecosystems: ${missing.join(', ')}`
+      )
+    } else {
+      core.info('All ecosystems have groups configured in dependabot.yml')
     }
   }
 }
