@@ -1,7 +1,12 @@
 import * as core from '@actions/core'
 import * as github from '@actions/github'
 import * as yaml from 'js-yaml'
-import { DependabotConfig, DependabotCooldown, DependabotUpdate, ValidationOptions } from './types'
+import {
+  DependabotConfig,
+  DependabotCooldown,
+  DependabotUpdate,
+  ValidationOptions
+} from './types'
 
 /**
  * Validates Dependabot configuration against repository's detected ecosystems

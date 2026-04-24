@@ -37211,6 +37211,27 @@ function getInput(name, options) {
     }
     return val.trim();
 }
+/**
+ * Gets the input value of the boolean type in the YAML 1.2 "core schema" specification.
+ * Support boolean input list: `true | True | TRUE | false | False | FALSE` .
+ * The return value is also in boolean type.
+ * ref: https://yaml.org/spec/1.2/spec.html#id2804923
+ *
+ * @param     name     name of the input to get
+ * @param     options  optional. See InputOptions.
+ * @returns   boolean
+ */
+function getBooleanInput(name, options) {
+    const trueValue = ['true', 'True', 'TRUE'];
+    const falseValue = ['false', 'False', 'FALSE'];
+    const val = getInput(name, options);
+    if (trueValue.includes(val))
+        return true;
+    if (falseValue.includes(val))
+        return false;
+    throw new TypeError(`Input does not meet YAML 1.2 "Core Schema" specification: ${name}\n` +
+        `Support boolean input list: \`true | True | TRUE | false | False | FALSE\``);
+}
 //-----------------------------------------------------------------------
 // Results
 //-----------------------------------------------------------------------
@@ -45049,18 +45070,27 @@ class DependabotValidator {
         this.octokit = octokit;
     }
     /**
-     * Validates that all supported ecosystems are configured in dependabot.yml
+     * Validates that all supported ecosystems are configured in dependabot.yml,
+     * and optionally enforces cooldown and groups policies across all update entries.
      * @param owner - Repository owner
      * @param repo - Repository name
      * @param ref - Git reference (branch/tag/commit)
      * @param supportedEcosystems - Set of package ecosystems that should be configured
+     * @param options - Optional policy flags (requireCooldown, requireGroups)
      * @throws {Error} When dependabot.yml is missing or invalid
      */
-    async validateConfiguration(owner, repo, ref, supportedEcosystems) {
+    async validateConfiguration(owner, repo, ref, supportedEcosystems, options = {}) {
         try {
             const dependabotConfig = await this.getDependabotConfig(owner, repo, ref);
             const configuredEcosystems = this.getConfiguredEcosystems(dependabotConfig);
             this.validateEcosystems(supportedEcosystems, configuredEcosystems);
+            const updates = dependabotConfig.updates ?? [];
+            if (options.requireCooldown) {
+                this.validateCooldown(updates);
+            }
+            if (options.requireGroups) {
+                this.validateGroups(updates);
+            }
         }
         catch (error) {
             if (error instanceof Error) {
@@ -45117,6 +45147,56 @@ class DependabotValidator {
             info('All supported ecosystems are configured in dependabot.yml');
         }
     }
+    /**
+     * Validates that every update entry has at least one cooldown day configured.
+     * Iterates all entries (not just detected-language ecosystems) so that
+     * entries like github-actions are also checked.
+     * @param updates - All update entries from dependabot.yml
+     */
+    validateCooldown(updates) {
+        const cooldownKeys = [
+            'default-days',
+            'semver-major-days',
+            'semver-minor-days',
+            'semver-patch-days'
+        ];
+        const missing = updates
+            .filter(update => {
+            const cooldown = update.cooldown;
+            if (!cooldown || typeof cooldown !== 'object')
+                return true;
+            return !cooldownKeys.some(key => cooldown[key] !== undefined && cooldown[key] !== null);
+        })
+            .map(update => update['package-ecosystem']);
+        if (missing.length > 0) {
+            setFailed(`Missing cooldown configuration for ecosystems: ${missing.join(', ')}`);
+        }
+        else {
+            info('All ecosystems have cooldown configured in dependabot.yml');
+        }
+    }
+    /**
+     * Validates that every update entry has at least one group defined.
+     * Iterates all entries (not just detected-language ecosystems) so that
+     * entries like github-actions are also checked.
+     * @param updates - All update entries from dependabot.yml
+     */
+    validateGroups(updates) {
+        const missing = updates
+            .filter(update => {
+            const groups = update.groups;
+            if (!groups || typeof groups !== 'object')
+                return true;
+            return Object.keys(groups).length === 0;
+        })
+            .map(update => update['package-ecosystem']);
+        if (missing.length > 0) {
+            setFailed(`Missing groups configuration for ecosystems: ${missing.join(', ')}`);
+        }
+        else {
+            info('All ecosystems have groups configured in dependabot.yml');
+        }
+    }
 }
 
 /**
@@ -45148,7 +45228,10 @@ async function run() {
         }
         info('');
         const validator = new DependabotValidator(octokit);
-        await validator.validateConfiguration(context$1.repo.owner, context$1.repo.repo, context$1.ref, supportedEcosystems);
+        await validator.validateConfiguration(context$1.repo.owner, context$1.repo.repo, context$1.ref, supportedEcosystems, {
+            requireCooldown: getBooleanInput('require-cooldown'),
+            requireGroups: getBooleanInput('require-groups')
+        });
     }
     catch (error) {
         if (error instanceof Error)
