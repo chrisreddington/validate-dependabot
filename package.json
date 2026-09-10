@@ -68,7 +68,7 @@
     "rimraf": "^6.1.2",
     "rollup": "^4.62.4",
     "typescript": "^6.0.3",
-    "vitest": "^4.0.10"
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "undici": "^7.29.0"
